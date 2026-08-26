@@ -65,7 +65,7 @@ def carregar_dados_s3(nome_arquivo):
             st.error(f"❌ Erro ao baixar arquivo de votos do S3: {e}")
             st.stop()
 
-NOME_ARQUIVO_VOTOS = "votacao_municipio_2022_BRASIL_com_coordenads.csv"
+NOME_ARQUIVO_VOTOS = "votacao_municipio_2022_BRASIL_com_coordenads_caracteristicas.csv "
 df = carregar_dados_s3(NOME_ARQUIVO_VOTOS)
 
 # === 2. Filtros e Lógica do App ===
