@@ -58,7 +58,7 @@ def carregar_dados(nome_arquivo):
         df = df.dropna(subset=colunas_necessarias)
         return df
 
-NOME_ARQUIVO_VOTOS = "votacao_municipio_2022_BRASIL_com_coordenads.csv"
+NOME_ARQUIVO_VOTOS = "votacao_municipio_2022_BRASIL_com_coordenads_caracteristicas.csv"
 df = carregar_dados(NOME_ARQUIVO_VOTOS)
 
 # === 2. Filtros ===
