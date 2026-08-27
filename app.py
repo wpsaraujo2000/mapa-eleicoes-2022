@@ -1,3 +1,24 @@
+import streamlit as st
+import boto3
+
+# Instancie seu cliente usando as credenciais (ou deixe ele pegar automaticamente do ambiente)
+s3 = boto3.client('s3')
+NOME_DO_BUCKET = 'ele-2022-brutos'
+
+st.write("🔍 **Investigando as chaves (arquivos) dentro do S3:**")
+try:
+    resposta = s3.list_objects_v2(Bucket=NOME_DO_BUCKET)
+    if 'Contents' in resposta:
+        for obj in resposta['Contents']:
+            st.code(obj['Key']) # Isso vai imprimir o nome EXATO na tela com fundo cinza
+    else:
+        st.warning("O bucket está vazio!")
+except Exception as e:
+    st.error(f"Erro ao listar o bucket: {e}")
+
+st.stop() # Interrompe o resto do app para focarmos só nisso
+
+
 import os
 import streamlit as st
 import pandas as pd
