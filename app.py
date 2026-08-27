@@ -171,7 +171,7 @@ sq_candidato_str = str(sq_candidato_selecionado).strip()
 query_despesas = f"""
     SELECT * 
     FROM {TABELA_DESPESAS} 
-    WHERE CAST(SQ_CANDIDATO AS STRING) = '{sq_candidato_str}'
+    WHERE CAST(SQ_CANDIDATO AS VARCHAR) = '{sq_candidato_str}'
 """
 
 dados_despesa = query_aws(query_despesas)
