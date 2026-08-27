@@ -1,12 +1,23 @@
 import streamlit as st
 import boto3
 
-st.title("🕵️‍♂️ Novo Capturador (À Prova de Falhas)")
+st.title("🕵️‍♂️ Novo Capturador (Agora apontando para o Secrets)")
 
-s3 = boto3.client('s3')
+# Pega as chaves exatamente de onde guardamos no Passo 2.2
+chave_id = st.secrets["connections"]["aws_athena"]["AWS_ACCESS_KEY_ID"]
+chave_secreta = st.secrets["connections"]["aws_athena"]["AWS_SECRET_ACCESS_KEY"]
+regiao = st.secrets["connections"]["aws_athena"]["AWS_DEFAULT_REGION"]
+
+# Cria o cliente S3 entregando as chaves na mão dele
+s3 = boto3.client(
+    's3',
+    aws_access_key_id=chave_id,
+    aws_secret_access_key=chave_secreta,
+    region_name=regiao
+)
+
 NOME_DO_BUCKET = 'ele-2022-brutos'
 
-# Exatamente os caminhos com as pastas que você criou!
 chave_votacao = 'votacao/votacao_municipio_2022_BRASIL_com_coordenads_caracteristicas.csv'
 chave_despesas = 'despesas/despesas_candidatos.csv'
 
