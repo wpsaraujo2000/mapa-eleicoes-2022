@@ -34,8 +34,7 @@ def iniciar_cliente_s3():
 
 s3_client = iniciar_cliente_s3()
 
-# === 1. Carregar dados de Votos Nativo (Sem smart_open) ===
-@st.cache_data
+# === 1. Função Nativa de Carregamento S3 ===
 def carregar_dados_s3(nome_arquivo):
     colunas_para_ler = [
         "NM_UE", "DS_CARGO", "SQ_CANDIDATO", "NM_CANDIDATO", 
@@ -50,25 +49,44 @@ def carregar_dados_s3(nome_arquivo):
         "QT_VOTOS_NOMINAIS_VALIDOS": "int32"
     }
 
+    objeto_s3 = s3_client.get_object(Bucket=BUCKET_NAME, Key=nome_arquivo)
+    corpo_arquivo = objeto_s3["Body"].read().decode("utf-8")
+    
+    df = pd.read_csv(StringIO(corpo_arquivo), sep=",", usecols=colunas_para_ler, dtype=tipos_dados)
+    df.columns = df.columns.str.strip()
+    df = df.dropna(subset=["latitude", "longitude", "QT_VOTOS_NOMINAIS_VALIDOS"])
+    return df
+
+# === 2. Diagnóstico de Nome do Arquivo ===
+NOME_ARQUIVO_VOTOS = "votacao_municipio_2022_BRASIL_com_coordenads_caracteristicas.csv"
+
+@st.cache_data
+def testar_e_carregar_dados(nome_arquivo):
     with st.spinner("Conectando à AWS e processando dados de votação..."):
         try:
-            # Busca o objeto diretamente via API oficial da AWS
-            objeto_s3 = s3_client.get_object(Bucket=BUCKET_NAME, Key=nome_arquivo)
-            corpo_arquivo = objeto_s3["Body"].read().decode("utf-8")
-            
-            # Carrega na memória convertendo em string de dados do Pandas
-            df = pd.read_csv(StringIO(corpo_arquivo), sep=",", usecols=colunas_para_ler, dtype=tipos_dados)
-            df.columns = df.columns.str.strip()
-            df = df.dropna(subset=["latitude", "longitude", "QT_VOTOS_NOMINAIS_VALIDOS"])
-            return df
+            return carregar_dados_s3(nome_arquivo)
         except Exception as e:
             st.error(f"❌ Erro ao baixar arquivo de votos do S3: {e}")
+            
+            # Bloco de diagnóstico: lista os arquivos reais do seu S3 na tela
+            try:
+                st.info("🔍 Analisando seu Bucket... Confira abaixo a lista dos nomes EXATOS dos arquivos salvos na AWS S3:")
+                resposta = s3_client.list_objects_v2(Bucket=BUCKET_NAME)
+                if 'Contents' in resposta:
+                    for obj in resposta['Contents']:
+                        st.code(obj['Key'])
+                    st.caption("💡 Se o nome acima for diferente, copie ele e substitua na linha 53 do seu app.py no GitHub.")
+                else:
+                    st.warning("O Bucket parece estar vazio ou sem arquivos acessíveis.")
+            except Exception as erro_lista:
+                st.error(f"Não foi possível listar o bucket: {erro_lista}")
+                
             st.stop()
 
-NOME_ARQUIVO_VOTOS = "votacao_municipio_2022_BRASIL_com_coordenads_caracteristicas.csv "
-df = carregar_dados_s3(NOME_ARQUIVO_VOTOS)
+# Executa o carregamento seguro da base de votação
+df = testar_e_carregar_dados(NOME_ARQUIVO_VOTOS)
 
-# === 2. Filtros e Lógica do App ===
+# === 3. Filtros e Lógica da Interface ===
 ufs = sorted(df["NM_UE"].dropna().unique())
 if "BRASIL" not in ufs:
     ufs.insert(0, "BRASIL")
@@ -97,6 +115,7 @@ else:
 
 st.markdown(f"🔑 **SQ_CANDIDATO:** `{sq_candidato_selecionado}`")
 
+# === 4. Agrupamentos e Cálculos Analíticos ===
 df_zona = (
     filtro_cand_base.groupby(["code_meso", "name_meso"])
     .agg({
@@ -190,7 +209,7 @@ if not df_zona.empty:
 else:
     st.warning("Nenhum dado de votação encontrado para os filtros selecionados.")
 
-# === 3. Carregar dados de Despesas Nativo ===
+# === 5. Carregar Dados de Despesas ===
 @st.cache_data
 def carregar_despesas_s3(nome_arquivo):
     with st.spinner("Buscando dados de despesas no S3..."):
@@ -198,7 +217,6 @@ def carregar_despesas_s3(nome_arquivo):
             objeto_s3 = s3_client.get_object(Bucket=BUCKET_NAME, Key=nome_arquivo)
             corpo_arquivo = objeto_s3["Body"].read().decode("latin1")
             
-            # Carrega apenas as colunas necessárias para economizar memória RAM
             df_amostra = pd.read_csv(StringIO(corpo_arquivo), nrows=1)
             df_amostra.columns = df_amostra.columns.str.strip().str.upper()
             colunas_necessarias = [col for col in df_amostra.columns if "DESPESA" in col or col == "SQ_CANDIDATO"]
