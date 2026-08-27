@@ -1,22 +1,83 @@
 import streamlit as st
+import pandas as pd
 import boto3
 
-# Instancie seu cliente usando as credenciais (ou deixe ele pegar automaticamente do ambiente)
+# 1. Configuração do Cliente AWS
+# (O Streamlit vai pegar as chaves automaticamente do Secrets)
 s3 = boto3.client('s3')
 NOME_DO_BUCKET = 'ele-2022-brutos'
 
-st.write("🔍 **Investigando as chaves (arquivos) dentro do S3:**")
-try:
-    resposta = s3.list_objects_v2(Bucket=NOME_DO_BUCKET)
-    if 'Contents' in resposta:
-        for obj in resposta['Contents']:
-            st.code(obj['Key']) # Isso vai imprimir o nome EXATO na tela com fundo cinza
-    else:
-        st.warning("O bucket está vazio!")
-except Exception as e:
-    st.error(f"Erro ao listar o bucket: {e}")
+# Nomes EXATOS capturados pelo nosso diagnóstico
+ARQUIVO_VOTACAO = 'votacao_municipio_2022_BRASIL_com_coordenads_caracteristicas.csv'
+ARQUIVO_DESPESAS = 'despesas_candidatos.csv'
 
-st.stop() # Interrompe o resto do app para focarmos só nisso
+# 2. Função de carregamento com Cache (Para não baixar do S3 toda hora)
+@st.cache_data(ttl=3600)
+def carregar_dados_votacao():
+    # Fazemos apenas a requisição do objeto, sem baixar tudo de uma vez
+    obj = s3.get_object(Bucket=NOME_DO_BUCKET, Key=ARQUIVO_VOTACAO)
+    
+    # Colunas que seu mapa e filtros realmente precisam (ajuste se necessário)
+    colunas_necessarias = [
+        'NM_UE', 'DS_CARGO', 'NM_CANDIDATO', 'SQ_CANDIDATO', 
+        'code_meso', 'name_meso', 'QT_VOTOS_NOMINAIS_VALIDOS', 
+        'latitude', 'longitude'
+    ]
+    
+    # Otimização extrema de tipos (category gasta MUITO menos RAM que object/string)
+    tipos_otimizados = {
+        'NM_UE': 'category',
+        'DS_CARGO': 'category',
+        'NM_CANDIDATO': 'category',
+        'code_meso': 'category',
+        'name_meso': 'category',
+        'QT_VOTOS_NOMINAIS_VALIDOS': 'int32', # int32 ocupa metade do espaço do int64 padrão
+        'latitude': 'float32',
+        'longitude': 'float32'
+    }
+
+    # Passamos o obj['Body'] direto para o Pandas. Ele lê o stream de rede.
+    df = pd.read_csv(
+        obj['Body'], 
+        usecols=colunas_necessarias, 
+        dtype=tipos_otimizados,
+        encoding='utf-8' # ou 'latin1' se você tiver problemas de acentuação
+    )
+    return df
+
+@st.cache_data(ttl=3600)
+def carregar_dados_despesas():
+    obj = s3.get_object(Bucket=NOME_DO_BUCKET, Key=ARQUIVO_DESPESAS)
+    
+    colunas_necessarias = ['SQ_CANDIDATO', 'TOTAL_DESPESA'] # Ajuste para as colunas reais de despesa
+    tipos_otimizados = {
+        'TOTAL_DESPESA': 'float32'
+    }
+    
+    df = pd.read_csv(
+        obj['Body'], 
+        usecols=colunas_necessarias, 
+        dtype=tipos_otimizados,
+        encoding='utf-8',
+        # Como o SQ_CANDIDATO no arquivo de votação pode virar float/string, 
+        # mantenha-o como string para facilitar os filtros (joins).
+        converters={'SQ_CANDIDATO': str} 
+    )
+    return df
+
+# === Execução ===
+st.title("🗳️ Mapa de Votação (AWS S3)")
+
+with st.spinner("Baixando e otimizando dados gigantes do S3..."):
+    try:
+        df_votacao = carregar_dados_votacao()
+        st.success(f"Dados de votação carregados! Linhas: {len(df_votacao):,}")
+        
+        # A partir daqui, você utiliza o df_votacao para alimentar os st.selectbox
+        # do estado, cargo e candidato do seu código original!
+        
+    except Exception as e:
+        st.error(f"Erro ao carregar dados: {e}")
 
 
 import os
