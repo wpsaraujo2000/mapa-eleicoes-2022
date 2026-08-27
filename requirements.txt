@@ -5,3 +5,5 @@ numpy
 boto3
 smart_open
 python-dotenv
+SQLAlchemy==2.0.25
+PyAthena==3.5.0
