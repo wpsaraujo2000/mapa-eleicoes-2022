@@ -26,7 +26,8 @@ def query_aws(query_str):
     return df
 
 TABELA = "eleicoes.votacao"
-TABELA_DESPESAS = "eleicoes.despesas"
+
+TABELA_DESPESAS = "eleicoes.despesas" # (ou adicione um comentário na frente para forçar o Git a atualizar)
 
 st.title("🗳️ Mapa de Votação por Mesorregião (2022)")
 
