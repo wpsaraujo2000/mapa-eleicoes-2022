@@ -156,7 +156,7 @@ if not df_zona.empty:
         .rename(columns={
             "VOTOS_CANDIDATO": "VOTOS CANDIDATO",
             "VOTOS_TOTAL_MESO": "VOTOS TOTAL MESO",
-            "PERCENTUAL_TOTAL": "% TOTAL BRASIL",
+            "PERCENTUAL_TOTAL": "% TOTAL",
             "PERCENTUAL_MESO": "% NA MESORREGIÃO"
         })
     )
