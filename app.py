@@ -2,11 +2,9 @@ import streamlit as st
 import pandas as pd
 import pydeck as pdk
 import numpy as np
-from sqlalchemy import text
+from pyathena import connect
 
-# === 1. Conexão com o AWS Athena ===
-conn = st.connection("aws_athena", type="sql")
-
+# Nome exato das tabelas na AWS
 TABELA_VOTACAO = "eleicoes.votacao"
 TABELA_DESPESAS = "eleicoes.despesas"
 
@@ -16,20 +14,38 @@ st.title("🗳️ Mapa de Votação por Mesorregião (2022)")
 # === FUNÇÃO À PROVA DE BALAS PARA O ATHENA ===
 @st.cache_data(ttl=3600)
 def consultar_athena(query_str):
-    with conn.session as session:
-        resultado = session.execute(text(query_str))
-        df = pd.DataFrame(resultado.fetchall(), columns=resultado.keys())
-        
-        # O Athena retorna tudo em minúsculo. 
-        # Convertendo as principais chaves de volta para maiúsculo para o seu código funcionar!
-        colunas_para_maiusculo = [
-            'nm_ue', 'ds_cargo', 'nm_candidato', 'sq_candidato', 
-            'votos_candidato', 'votos_total_meso'
-        ]
-        renames = {col: col.upper() for col in colunas_para_maiusculo if col in df.columns}
-        df.rename(columns=renames, inplace=True)
-        
-        return df
+    # 1. Pega as credenciais direto do secrets
+    chave_id = st.secrets["connections"]["aws_athena"]["AWS_ACCESS_KEY_ID"]
+    chave_secreta = st.secrets["connections"]["aws_athena"]["AWS_SECRET_ACCESS_KEY"]
+    pasta_resultados = "s3://ele-2022-brutos/resultados-athena/" 
+    regiao = "us-east-2"
+
+    # 2. Conecta diretamente usando PyAthena (Igualzinho ao diagnóstico que funcionou!)
+    conn = connect(
+        aws_access_key_id=chave_id,
+        aws_secret_access_key=chave_secreta,
+        s3_staging_dir=pasta_resultados,
+        region_name=regiao
+    )
+    
+    # 3. Executa a query
+    cursor = conn.cursor()
+    cursor.execute(query_str)
+    
+    # 4. Transforma em Pandas DataFrame
+    colunas = [desc[0] for desc in cursor.description]
+    df = pd.DataFrame(cursor.fetchall(), columns=colunas)
+    
+    # O Athena retorna tudo em minúsculo. 
+    # Convertendo as principais chaves de volta para maiúsculo para o seu código funcionar!
+    colunas_para_maiusculo = [
+        'nm_ue', 'ds_cargo', 'nm_candidato', 'sq_candidato', 
+        'votos_candidato', 'votos_total_meso'
+    ]
+    renames = {col: col.upper() for col in colunas_para_maiusculo if col in df.columns}
+    df.rename(columns=renames, inplace=True)
+    
+    return df
 
 # === 2. Filtros Dinâmicos ===
 def obter_ufs():
